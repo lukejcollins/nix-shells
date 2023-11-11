@@ -10,6 +10,15 @@ pkgs.mkShell {
   buildInputs = [ pkgs.postgresql ];
 
   shellHook = ''
+    # Function to start PostgreSQL server
+    function start_postgres {
+      echo "Starting PostgreSQL server..."
+      pg_ctl -D ${pgData} -l ${pgData}/logfile -o "-k ${pgData}" start
+      # Give PostgreSQL a few seconds to initialize (optional but can be helpful)
+      sleep 3
+    }
+
+    # Initialize PostgreSQL data directory if it doesn't exist
     if [ ! -d "${pgData}" ]; then
       echo "Initializing PostgreSQL data directory..."
       initdb -D ${pgData}
@@ -19,11 +28,15 @@ pkgs.mkShell {
       sed -i "s/#port = 5432/port = 5433/g" ${pgConfig}
       echo "host    all             all             0.0.0.0/0               trust" >> ${pgHBA}
 
-      echo "Starting PostgreSQL server..."
-      pg_ctl -D ${pgData} -l ${pgData}/logfile -o "-k ${pgData}" start
-
-      # Give PostgreSQL a few seconds to initialize (optional but can be helpful)
-      sleep 3
+      start_postgres
+    else
+      # Check if PostgreSQL is running, start if not
+      if ! pg_ctl -D ${pgData} status > /dev/null; then
+        echo "PostgreSQL server not running. Starting server..."
+        start_postgres
+      else
+        echo "PostgreSQL server is already running."
+      fi
     fi
 
     echo "Configuring PostgreSQL Database..."
